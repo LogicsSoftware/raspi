@@ -12,6 +12,7 @@ from gpiozero import LED
 
 adc = ADCDevice() # Define an ADCDevice class object
 start = timer()
+globalstart = timer() # does not get reset
 counter = 0
 led = LED(17)       # define LED pin according to BCM Numbering
 lastled = 0
@@ -97,7 +98,7 @@ if __name__ == '__main__':   # Program entrance
         destroy()
         print("Ending program")
         end = timer()
-        diff = end - start
+        diff = end - globalstart
         hzSampling = counter / diff
         print("after diff", diff, "counter is at", counter, "with hz", hzSampling, "ignored events", number_ignored_events)
         
