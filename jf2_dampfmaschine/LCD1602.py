@@ -86,8 +86,8 @@ class CharLCD1602(object):
             self.send_command(0x0C) # Enable display without cursor
             time.sleep(0.005)
             self.send_command(0x01) # Clear Screen
-            #self.buswrite_byte(self.LCD_ADDR, 0x08)
-            self.bus.write_byte(self.LCD_ADDR, 0x08)    # JF: ???
+            self.buswrite_byte(self.LCD_ADDR, 0x08)
+            #self.bus.write_byte(self.LCD_ADDR, 0x08)    # JF: ???
         except Exception as inst:
             print(type(inst), inst.args, inst)
             return False

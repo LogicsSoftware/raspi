@@ -41,14 +41,19 @@ from gpiozero import Button
 button = Button(18, bounce_time=0.001)
 
 
-import smbus
-from LCD1602 import CharLCD1602
-lcd1602 = CharLCD1602() 
-lcd1602.init_lcd()
-lcd1602.clear()
-lcd1602.write(0, 0, "TEST" )
-lcd1602.write(0, 1, "EINS" )
-
+###########################################################################
+# test LCD
+###########################################################################
+#import smbus
+def initLCD() :
+    from LCD1602 import CharLCD1602
+    lcd1602 = CharLCD1602() 
+    lcd1602.init_lcd()
+    lcd1602.clear()
+    lcd1602.write(0, 0, "TEST" )
+    lcd1602.write(0, 1, "EINS" )
+    return lcd1602
+#initLCD()
 
 
 ###########################################################################
@@ -257,6 +262,12 @@ if __name__ == '__main__':   # Program entrance
         parser.add_argument("-v", "--verbose", help="show all sampled values; default: only show rising edge", action="store_true")
         args = parser.parse_args()
         print (args)
+
+        # show lcd message
+        lcd1602 = initLCD()
+        lcd1602.clear()
+        lcd1602.write(0, 0, str(args.frequency) + " " + str(args.dutycycle))
+        lcd1602.write(0, 1, ("-t " if args.test else "") + ("-d " if args.digital else "") + ("-v " if args.verbose else ""))
         
         startADC()
 
