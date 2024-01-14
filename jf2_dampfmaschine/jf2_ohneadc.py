@@ -102,7 +102,7 @@ def testLoop(verbose=False, digital=False):
                     text = "ON FIRST"
                 else:
                     timeRPS = now - startRPS
-                    text = "ON last={:>.3f}ms".format(timeRPS) + ", {:>4.1f} Hz".format(1/timeRPS) + ", on={:>2d}".format(countON) + ", off={:>2d}".format(countOFF) + ", duty={:2.2f}%".format(100 * countON/(countON + countOFF))
+                    text = "ON last={:>.3f}ms".format(timeRPS) + ", {:>5.1f} Hz".format(1/timeRPS) + ", on={:>2d}".format(countON) + ", off={:>2d}".format(countOFF) + ", duty={:2.2f}%".format(100 * countON/(countON + countOFF))
                 
                 # start next cycle
                 led.on()
