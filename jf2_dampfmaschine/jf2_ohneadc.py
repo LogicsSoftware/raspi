@@ -38,7 +38,7 @@ from gpiozero import Button
 #button = Button(18, bounce_time=5) # does not work for button.is_pressed
 #button = Button(18)
 #button = Button(18, bounce_time=0.005)
-button = Button(18, bounce_time=0.001)
+###button = Button(18, bounce_time=0.001)
 
 
 ###########################################################################
@@ -63,7 +63,7 @@ def initLCD() :
 #   turn led ON/OFF
 #   prints ADC sample time and value
 ###########################################################################
-def testLoop(verbose=False, digital=False):
+def testLoop(verbose=False, digital=False, infrared=False):
     print("testloop:", "digital=" + str(digital), "verbose=" + str(verbose))
 
     startTest = timer()    
@@ -71,6 +71,8 @@ def testLoop(verbose=False, digital=False):
     timeRPS = 0
     countON = 0
     countOFF = 0
+    timeON = 0
+    timeOFF = 0
 
     led.off()
     loops = 0
@@ -79,12 +81,14 @@ def testLoop(verbose=False, digital=False):
 
         # read the ADC (voltage) of channel 0
         startADC = timer()
-        if (digital):
+        if (digital or infrared):
             #voltage = 3.3 if button.is_pressed else 0
             if (led.is_lit):
+                timeOFF = timer()
                 button.wait_for_release()
                 voltage = 0
             else:
+                timeON = timer()
                 button.wait_for_press()
                 voltage = 3.3
         else:
@@ -107,7 +111,11 @@ def testLoop(verbose=False, digital=False):
                     text = "ON FIRST"
                 else:
                     timeRPS = now - startRPS
-                    text = "ON last={:>.3f}ms".format(timeRPS) + ", {:>5.1f} Hz".format(1/timeRPS) + ", on={:>2d}".format(countON) + ", off={:>2d}".format(countOFF) + ", duty={:2.2f}%".format(100 * countON/(countON + countOFF))
+                    text = "ON cycle: {:>6.1f} ms".format(1000 * timeRPS) + " = {:>3.0f} Hz".format(1/timeRPS) \
+                        + ", on={:>2d}".format(countON) + ", off={:>2d}".format(countOFF) \
+                        + ", duty={:2.2f}%".format(100 * countON/(countON + countOFF)) \
+                        + ", duration: {:>6.1f}".format(1000*(timeON - timeOFF)) + " / {:<6.1f}".format(1000*(now - timeON)) \
+                        + ", duty: {:5.2f}%".format(100 * (timeON - timeOFF)/timeRPS ) # (now - timeON))
                 
                 # start next cycle
                 led.on()
@@ -131,8 +139,8 @@ def testLoop(verbose=False, digital=False):
             print("{:5}:".format(loops),
                 "time {:2.6f}".format(now - startTest),
                 #"after {:2.3f}ms".format(waitADC),
-                "after {:>6.3f}ms".format(waitADC),
-                "shows", "{:.3f}V:".format(voltage),
+                "after {:>7.3f} ms".format(waitADC),
+                "shows", "{:>4.2f} V:".format(voltage),
                 text,
                 )
 
@@ -251,14 +259,40 @@ def destroy():
     
 if __name__ == '__main__':   # Program entrance
     print ('Program is starting ... ')
+
+    """
+    # test adafruit IR breakbeam
+    bb = Button(23, active_state=False)
+    while False:
+        signal = not bb.is_pressed
+        print("signal=" + str(signal))
+        if (signal):
+            led.on()
+        else:
+            led.off()
+    if bb.is_pressed:
+        led.on()
+    while True:
+        if (led.is_lit):
+            bb.wait_for_release()
+            led.on()
+        else:
+            bb.wait_for_press()
+            led.off()
+        print("signal=" + str(led.is_lit))
+
+    """
+
     try:
         # https://docs.python.org/3/howto/argparse.html
         import argparse
         parser  = argparse.ArgumentParser()
         parser.add_argument("frequency", help="frequency of the PWM LED (1 .. 1000, default 10)", type=int, nargs = "?", default=10) 
         parser.add_argument("dutycycle", help="duty cycle of the PWM LED (0 .. 1, default 0.1)", type=float, nargs="?", default=0.1)
+        #parser.add_argument("mode", help="", choices=["niko", "adc", "digital", "ir"])
         parser.add_argument("-t", "--test", help="run test loop; default: run production loop", action="store_true")
         parser.add_argument("-d", "--digital", help="use digital input; default: use ADC input", action="store_true")
+        parser.add_argument("-i", "--infrared", help="use IR breakbeam sensor for input; default: use ADC input", action="store_true")
         parser.add_argument("-v", "--verbose", help="show all sampled values; default: only show rising edge", action="store_true")
         args = parser.parse_args()
         print (args)
@@ -267,7 +301,7 @@ if __name__ == '__main__':   # Program entrance
         lcd1602 = initLCD()
         lcd1602.clear()
         lcd1602.write(0, 0, str(args.frequency) + " " + str(args.dutycycle))
-        lcd1602.write(0, 1, ("-t " if args.test else "") + ("-d " if args.digital else "") + ("-v " if args.verbose else ""))
+        lcd1602.write(0, 1, ("-t " if args.test else "") + ("-d " if args.digital else "") + ("-i " if args.infrared else "") + ("-v " if args.verbose else ""))
         
         startADC()
 
@@ -287,15 +321,23 @@ if __name__ == '__main__':   # Program entrance
         #startPwmLed(100, 0.1)  # NO: 11 rps
         #startPwmLed(100, 0.5)  # NO: 0.0
 
-        if (args.test):
-            testLoop(args.verbose, args.digital)
+        #global button
+        if args.test:
+            if args.infrared:
+                # adafruit IR breakbeam: Open Collector with external pullup; inverted logic
+                button = Button(23, pull_up = None, active_state=False)
+            else:
+                # digital: LDR via voltage devidor
+                button = Button(18, bounce_time=0.001)
+            testLoop(args.verbose, args.digital, args.infrared)
         else:
             loop()
     except KeyboardInterrupt: # Press ctrl-c to end the program.
         destroy()
-        print("Ending program")
+        print("Ending program")        
         end = timer()
         diff = end - globalstart
         hzSampling = counter / diff
         print("after diff", diff, "counter is at", counter, "with hz", hzSampling, "ignored events", number_ignored_events)
+        print (args)
         
