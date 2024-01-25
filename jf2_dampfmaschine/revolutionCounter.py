@@ -63,8 +63,8 @@ def initLCD() :
 #   turn led ON/OFF
 #   prints ADC sample time and value
 ###########################################################################
-def testLoop(verbose=False, digital=False, infrared=False):
-    print("testloop:", "digital=" + str(digital), "verbose=" + str(verbose))
+def testLoop(mode="ir", skipRelease=False, verbose=False):
+    print("testloop:", "mode=" + mode, "skipRelease=" + str(skipRelease), "verbose=" + str(verbose))
 
     startTest = timer()    
     startRPS = 0
@@ -73,25 +73,28 @@ def testLoop(verbose=False, digital=False, infrared=False):
     countOFF = 0
     timeON = 0
     timeOFF = 0
+    loops = 0
 
     led.off()
-    loops = 0
     while True:
         loops += 1 
 
         # read the ADC (voltage) of channel 0
         startADC = timer()
-        if (digital or infrared):
+        #if (digital or infrared):
+        if (mode == "ir" or mode == "digital"):
             #voltage = 3.3 if button.is_pressed else 0
             if (led.is_lit):
                 timeOFF = timer()
+                #if skipRelease:    # DOES NOT WORK: we need something like "wait_for_rising_edge", but only have "wait_for_press/release"
+                                    # try GPIO.wait_for_edge(channel, GPIO.RISING) ??
                 button.wait_for_release()
                 voltage = 0
             else:
                 timeON = timer()
                 button.wait_for_press()
                 voltage = 3.3
-        else:
+        else:   # mode == ADC
             value = adc.analogRead(0)
             voltage = value / 255.0 * 3.3   # calculate the voltage value
         now = timer()
@@ -144,6 +147,33 @@ def testLoop(verbose=False, digital=False, infrared=False):
                 text,
                 )
 
+""" sometimes on start, if very "fast" (freq or duty)
+
+startPwmLed: frequency= 300 , dutyCyle= 0.1
+Exception in thread Thread-1:
+Traceback (most recent call last):
+testloop: digital=False verbose=False
+    1: time 0.000324 after   0.123 ms shows 3.30 V: ON FIRST
+  File "/usr/lib/python3.11/threading.py", line 1038, in _bootstrap_inner
+    self.run()
+  File "/usr/lib/python3/dist-packages/lgpio.py", line 554, in run
+    cb.func(chip, gpio, level, tick)
+  File "/usr/lib/python3/dist-packages/gpiozero/pins/lgpio.py", line 248, in _call_when_changed
+    super()._call_when_changed(ticks / 1000000000, level)
+  File "/usr/lib/python3/dist-packages/gpiozero/pins/local.py", line 111, in _call_when_changed
+    super()._call_when_changed(
+  File "/usr/lib/python3/dist-packages/gpiozero/pins/pi.py", line 615, in _call_when_changed
+    method(ticks, state)
+  File "/usr/lib/python3/dist-packages/gpiozero/input_devices.py", line 179, in _pin_changed
+    self._fire_events(ticks, bool(self._state_to_value(state)))
+  File "/usr/lib/python3/dist-packages/gpiozero/mixins.py", line 385, in _fire_events
+    self._fire_activated()
+  File "/usr/lib/python3/dist-packages/gpiozero/mixins.py", line 432, in _fire_activated
+    self._hold_thread.holding.set()
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'holding'
+
+"""
 
 ###########################################################################
 # result LED
@@ -214,12 +244,10 @@ if __name__ == '__main__':   # Program entrance
         # https://docs.python.org/3/howto/argparse.html
         import argparse
         parser  = argparse.ArgumentParser()
-        parser.add_argument("frequency", help="frequency of the PWM LED (1 .. 1000, default 10)", type=int, nargs = "?", default=10) 
+        parser.add_argument("mode", help="mode: ir breakbeam, or LDR+ADC, or LDR-digital", choices=["ir", "adc", "digital"], default="ir")
+        parser.add_argument("frequency", help="frequency of the PWM LED (1 .. 1000, default 1)", type=int, nargs = "?", default=1) 
         parser.add_argument("dutycycle", help="duty cycle of the PWM LED (0 .. 1, default 0.1)", type=float, nargs="?", default=0.1)
-        #parser.add_argument("mode", help="", choices=["niko", "adc", "digital", "ir"])
-        #parser.add_argument("-t", "--test", help="run test loop; default: run production loop", action="store_true")
-        parser.add_argument("-d", "--digital", help="use digital input; default: use ADC input", action="store_true")
-        parser.add_argument("-i", "--infrared", help="use IR breakbeam sensor for input; default: use ADC input", action="store_true")
+        parser.add_argument("-s", "--skipRelease", help="for revolution detection: do no wait for release; default: wait", action="store_true")
         parser.add_argument("-v", "--verbose", help="show all sampled values; default: only show rising edge", action="store_true")
         args = parser.parse_args()
         print (args)
@@ -227,8 +255,7 @@ if __name__ == '__main__':   # Program entrance
         # show lcd message
         lcd1602 = initLCD()
         lcd1602.clear()
-        lcd1602.write(0, 0, str(args.frequency) + " " + str(args.dutycycle))
-        lcd1602.write(0, 1, ("-d " if args.digital else "") + ("-i " if args.infrared else "") + ("-v " if args.verbose else ""))
+        lcd1602.write(0, 0, args.mode + " " + str(args.frequency) + " " + str(args.dutycycle) + (" -s" if args.skipRelease else "") + (" -v" if args.verbose else ""))
         
         startADC()
 
@@ -248,13 +275,15 @@ if __name__ == '__main__':   # Program entrance
         #startPwmLed(100, 0.1)  # NO: 11 rps
         #startPwmLed(100, 0.5)  # NO: 0.0
 
-        if args.infrared:
+        if args.mode == "ir":
             # adafruit IR breakbeam: Open Collector with external pullup; inverted logic
             button = Button(23, pull_up = None, active_state=False)
         else:
-            # digital: LDR via voltage devidor
+            # digital: LDR via voltage devider
             button = Button(18, bounce_time=0.001)
-        testLoop(args.verbose, args.digital, args.infrared)
+
+        testLoop(args.mode, args.skipRelease, args.verbose)
+        
     except KeyboardInterrupt: # Press ctrl-c to end the program.
         destroy()
         print("Ending program")        
